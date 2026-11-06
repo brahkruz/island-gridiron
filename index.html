@@ -2221,7 +2221,7 @@ function newSeason(){
 /* ---------- live game ---------- */
 function startLive(){
   const g=userGame(); if(!g||g.played)return;
-  LIVE={game:g,sim:new Sim(g),auto:false,speed:1,anim:null,waiting:false,timer:null,finished:false,side:g.home===S.user?'h':'a'};
+  LIVE={game:g,sim:new Sim(g),auto:false,speed:S.speed||2,anim:null,waiting:false,timer:null,finished:false,side:g.home===S.user?'h':'a'};
   {const s=LIVE.sim,hm=LIVE.side==='h',mine=S.uni&&S.uni[hm?'home':'away'];LIVE.kit=gameKits(s.T.h,s.T.a,hm?mine:null,hm?null:mine,LIVE.side)}
   view='game'; render(); queueNext(500);
   try{document.getElementById('bug').scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}catch(e){}
@@ -5007,7 +5007,7 @@ function netNewGame(){
   NETT={[H.id]:H,[A.id]:A};
   const g={home:H.id,away:A.id,Th:H,Ta:A,online:true,neutral:true};
   if(LIVE)clearTimeout(LIVE.timer);
-  LIVE={game:g,sim:new Sim(g),auto:false,speed:1,anim:null,waiting:false,timer:null,finished:false,side:'h',net:N};
+  LIVE={game:g,sim:new Sim(g),auto:false,speed:2,anim:null,waiting:false,timer:null,finished:false,side:'h',net:N};
   LIVE.kit=gameKits(H,A,S.uni&&S.uni.home,N.funi||null,'h');
   N.seq=0; N.logN=0; N.pick=null; N.wait=null; N.started=true; view='game'; render(); netSendStart(); queueNext(2600);
 }
@@ -5080,7 +5080,7 @@ function netGot(kind,o){
     const g={home:H.id,away:A.id,Th:H,Ta:A,online:true,neutral:true}, sim=new Sim(g);
     netApply(sim,o.st); sim.log=Array.isArray(o.log)?o.log:[]; sim.rmap=o.rm||null;
     if(LIVE)clearTimeout(LIVE.timer);
-    LIVE={game:g,sim,auto:false,speed:1,anim:null,waiting:false,timer:null,finished:!!sim.over,side:o.gs==='h'?'h':'a',net:N};
+    LIVE={game:g,sim,auto:false,speed:2,anim:null,waiting:false,timer:null,finished:!!sim.over,side:o.gs==='h'?'h':'a',net:N};
     if(kitsValid(o.kit))LIVE.kit=o.kit;
     N.started=true; N.err=null; N.ask=null; N.myCall=null; N.seq=o.seq|0; view='game'; render();
     if(o.ask&&o.ask.need)netAskIn({seq:o.ask.seq,need:o.ask.need});
@@ -5298,7 +5298,7 @@ document.addEventListener('click',e=>{
   else if(a==='cam'){S.cam=S.cam==='full'?'follow':'full';save();updateGameUI()}
   else if(a==='scheme'){sch(S.user).scheme=v;save();render()}
   else if(a==='auto'){LIVE.auto=!LIVE.auto;if(LIVE.auto&&LIVE.waiting)doPlay();updateGameUI()}
-  else if(a==='speed'){LIVE.speed=+v;updateGameUI()}
+  else if(a==='speed'){LIVE.speed=+v;if(!LIVE.net){S.speed=+v;save()}updateGameUI()}
   else if(a==='simend')simToEnd();
   else if(a==='rec'){const [pid,k]=v.split('|');recruitAction(pid,k,RS.pitch)}
   else if(a==='board'){const p=S.prospects.find(x=>x.id===v);if(p){p.board=!p.board;save();render()}}
