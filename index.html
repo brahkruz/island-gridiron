@@ -504,6 +504,14 @@ label.btn{cursor:pointer}
 .rpbug{position:absolute;top:10px;left:10px;z-index:3;display:flex;align-items:center;gap:8px;padding:5px 10px 5px 6px;border-radius:6px;background:rgba(5,10,18,.78);border:1px solid rgba(255,255,255,.18);font:700 13px var(--cond);letter-spacing:.12em;text-transform:uppercase;color:var(--chalk);pointer-events:none}
 .rpbug b{background:#d8322b;color:#fff;padding:2px 7px;border-radius:4px;letter-spacing:.16em;animation:rpb 1.2s ease-in-out infinite}
 @keyframes rpb{50%{opacity:.6}}
+.clk{cursor:pointer}.clk:hover td{background:rgba(255,255,255,.05)}.bxlink{color:var(--amber);font:600 13px var(--cond);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.bxsc{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;flex-wrap:wrap}
+.bxt{display:flex;align-items:center;gap:12px;flex:1;min-width:220px}.bxt.r{justify-content:flex-end;text-align:right}
+.bxn{font-family:var(--display);font-weight:800;font-size:22px;text-transform:uppercase;line-height:1}
+.bxs{font-family:var(--cond);font-weight:800;font-size:46px;color:var(--mute);margin:0 8px}.bxs.win{color:var(--chalk)}
+.bxmid{font:700 14px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:var(--amber)}
+.bxq td,.bxq th,.bxtm td,.bxtm th,.bxp td,.bxp th{text-align:center}.bxq td:first-child,.bxtm td:first-child,.bxp td:first-child,.bxp th:first-child{text-align:left}
+.bxp{margin-bottom:6px}
 </style>
 
 <div id="app" class="wrap"></div>
@@ -841,7 +849,9 @@ const pipeLabel=v=>v>=4?'Strong':v>=2?'Growing':v>=.5?'New':'None';
 const admitReq=s=>s.priv?Math.round((2.0+s.acad*1.3)*10)/10:0;
 const geCount=id=>S.prospects.filter(x=>x.committed===id&&x.home!==id).length;
 // can this school take him? Public schools need a geographic exception for kids outside their district; private schools have admissions
-function canCommit(p,id){const s=sch(id);if(!s)return false;if(s.priv)return p.gpa>=admitReq(s);if(p.home===id)return true;if(id===S.user)return p.ge==='ok';return geCount(id)<GE_AI}
+// kids on the same island as the school don't need a geographic exception; only off-island kids do
+const isleOf=id=>{const s=id&&sch(id);return s?s.isl:null}, noGE=(p,id)=>p.home===id||(!!(p.isl||isleOf(p.home))&&(p.isl||isleOf(p.home))===isleOf(id));
+function canCommit(p,id){const s=sch(id);if(!s)return false;if(s.priv)return p.gpa>=admitReq(s);if(noGE(p,id))return true;if(id===S.user)return p.ge==='ok';return geCount(id)<GE_AI}
 function firmness(p){if(!p.committed)return null;const a=suitors(p),cv=p.interest[p.committed]||0,sec=(a.find(([id])=>id!==p.committed)||[0,0])[1];
   return clamp(45+(cv-sec)*2.2+(S.week-(p.cwk||S.week))*5+(p.trait==='loyal'?20:p.trait==='ambitious'?-10:0),0,100)}
 const firmLabel=f=>f>=75?['Firm','good']:f>=45?['Solid','']:['Soft','bad'];
@@ -902,7 +912,7 @@ function recruitAction(pid,type,pitch,quiet){
     plog(p,`You offered tuition assistance. +${g}`,'mine'); if(!quiet){toast(`Aid offered: interest +${g}.`); save(); render();} return g;
   }
   if(type==='ge'){
-    if(s.priv||p.home===u)return say('He lives in your district. No exception needed.'); if(p.ge)return say(p.ge==='ok'?'His exception is already approved.':'His exception was denied.');
+    if(s.priv||noGE(p,u))return say(p.home===u?'He lives in your district. No exception needed.':'He lives on your island. No exception needed.'); if(p.ge)return say(p.ge==='ok'?'His exception is already approved.':'His exception was denied.');
     if((S.geLeft??GE_PER_YEAR)<=0)return say('You have no geographic exception requests left this year.');
     S.geLeft=(S.geLeft??GE_PER_YEAR)-1; const ch=clamp(.55+(p.gpa-2.6)*.3,.3,.92); p.ge=Math.random()<ch?'ok':'denied';
     plog(p,p.ge==='ok'?`Geographic exception approved. He can enroll at ${s.name}.`:`Geographic exception denied. He can't enroll at ${s.name}.`,p.ge==='ok'?'mine':'bad');
@@ -991,7 +1001,7 @@ function autoRecruit(){
     const g=recruitAction(p.id,type,pitch,true);
     if(!g)continue;
     n++; used[p.pos]=(used[p.pos]||0)+1;
-    if(!s.priv&&p.home!==u&&!p.ge&&(S.geLeft??GE_PER_YEAR)>0&&(p.interest[u]||0)>=40&&p.stars>=3&&recruitAction(p.id,'ge',null,true))log.push(`filed a geographic exception for ${p.first} ${p.last} (${p.ge==='ok'?'approved':'denied'})`);
+    if(!s.priv&&!noGE(p,u)&&!p.ge&&(S.geLeft??GE_PER_YEAR)>0&&(p.interest[u]||0)>=40&&p.stars>=3&&recruitAction(p.id,'ge',null,true))log.push(`filed a geographic exception for ${p.first} ${p.last} (${p.ge==='ok'?'approved':'denied'})`);
     log.push(`${{call:'called',watch:'scouted',camp:'brought to Junior Day',visit:'hosted',home:'made a home visit to'}[type]} ${p.stars}-star ${p.pos} ${p.first} ${p.last}, pitching ${PITCHES[pitch].label.toLowerCase()} (+${g})`);
     const ptm=p.mot.find(m=>m.k==='pt'&&m.known);
     if(ptm&&ptm.w>=.3&&!p.promised&&(p.contacts[u]||0)>=2&&p.stars>=3){const slots=STARTERS[p.pos]-S.prospects.filter(x=>x.promised&&x.pos===p.pos).length;if(slots>0&&recruitAction(p.id,'promise',null,true))log.push(`promised ${p.first} ${p.last} a starting job`)}
@@ -1041,7 +1051,7 @@ function commitCheck(){
     const a=all.filter(([id])=>canCommit(p,id)), mine=p.interest[S.user]||0;
     // he wants you, but the paperwork isn't there yet
     if(all[0][0]===S.user&&!canCommit(p,S.user)&&all[0][1]>=40&&!p.blockNote){p.blockNote=true;const s0=sch(S.user);
-      const why=s0.priv?`His ${p.gpa.toFixed(1)} GPA is below the ${admitReq(s0).toFixed(1)} ${s0.name} needs for admission.`:p.ge==='denied'?'His geographic exception was denied.':`He lives outside your district. File a geographic exception so he can enroll.`;
+      const why=s0.priv?`His ${p.gpa.toFixed(1)} GPA is below the ${admitReq(s0).toFixed(1)} ${s0.name} needs for admission.`:p.ge==='denied'?'His geographic exception was denied.':`He lives on another island. File a geographic exception so he can enroll.`;
       plog(p,`Wants to commit to ${s0.name}. ${why}`,'bad');news(`${p.stars}-star ${p.pos} ${p.first} ${p.last} wants to commit to you. ${why}`,'bad')}
     if(!a.length)continue;
     if(!p.committed){
@@ -1922,6 +1932,7 @@ function leaders(sim){
 function finalizeGame(g,sim){
   RK=null;
   g.hs=sim.score.h; g.as=sim.score.a; g.played=true; g.ot=!!sim.ot; g.lead=leaders(sim);
+  if(g.home===S.user||g.away===S.user)try{g.bx=boxScore(sim)}catch(e){console.error(e)}
   // ranks as they stood when the week began, for the weekly story
   if(!S.rankSnap||S.rankSnap.wk!==S.week||S.rankSnap.yr!==S.year){const ids=Object.keys(S.schools);S.rankSnap={wk:S.week,yr:S.year,d:Object.fromEntries(ids.map(id=>[id,dRank(id)])),o:Object.fromEntries(ids.map(id=>[id,rankOf(id)]))}}
   const rs=S.rankSnap, lab=id=>rs.d[id]<=10?`${DIV_SHORT[sch(id).div]||''} No. ${rs.d[id]}`:null;
@@ -1948,6 +1959,50 @@ function finalizeGame(g,sim){
   try{recordGame(g,sim)}catch(e){console.error(e)}
 }
 
+// A compact box score for your games: scoring by quarter, team totals, the scoring plays, and every player who touched the ball or made a play
+function boxScore(sim){
+  const q={h:[],a:[]},last={h:0,a:0},nq=Math.max(4,...sim.log.map(e=>e.q||0));
+  for(let k=1;k<=nq;k++){let sh=last.h,sa=last.a;for(const e of sim.log)if(e.q===k&&e.sh!=null){sh=e.sh;sa=e.sa}q.h.push(sh-last.h);q.a.push(sa-last.a);last.h=sh;last.a=sa}
+  q.h[q.h.length-1]+=sim.score.h-last.h; q.a[q.a.length-1]+=sim.score.a-last.a;
+  const side={};for(const s of ['h','a'])for(const p of sim.T[s].roster)side[p.id]=s;
+  const t={h:{},a:{}},add=(s,k,v)=>{t[s][k]=(t[s][k]||0)+(v||0)};
+  const pl={h:[],a:[]};
+  for(const [id,b] of Object.entries(sim.box)){const s=side[id],p=sim.players[id];if(!s||!p)continue;
+    for(const k of ['pa','pc','py','pi','ra','ry','rc','cy','sk','tk','di','fr'])add(s,k,b[k]);
+    pl[s].push([`${p.first[0]}. ${p.last}`,p.pos,p.num,b])}
+  for(const s of ['h','a']){const o=s==='h'?'a':'h';t[s].to=(t[s].pi||0)+(t[o].fr||0);t[s].skd=t[o].sk||0;t[s].pen=sim.pens?sim.pens[s].n:0;t[s].peny=sim.pens?sim.pens[s].y:0;
+    t[s].fd=sim.log.filter(e=>e.poss===s&&/First down|Touchdown/.test(e.text||'')&&!e.sys).length}
+  const sc=sim.log.filter(e=>e.score&&!e.sys&&!/extra point/i.test(e.text||'')).map(e=>[e.q,Math.round(e.clock||0),e.scorer||(e.int||e.fumble?(e.poss==='h'?'a':'h'):e.poss),String(e.text||'').slice(0,160),e.sh,e.sa]);
+  return {q,t,pl,sc};
+}
+function vBox(){
+  const g=S.games.find(x=>x.id===BOXG); if(!g||!g.played){view='schedule';return vSchedule()}
+  const H=sch(g.home),A=sch(g.away),B=g.bx, back=`<button class="btn sm" data-a="tab" data-v="schedule">← Schedule</button>`;
+  const head=`<section class="panel feature boxhead"><div class="row" style="justify-content:space-between">${back}<span class="muted small">${wkLabel(g.week)}${g.po?' · '+g.po:''}</span></div>
+    <div class="bxsc"><div class="bxt">${crest(A.id,56)}<div><div class="bxn">${A.name}</div><div class="muted small">${A.mascot} · ${A.w}-${A.l}</div></div><div class="bxs ${g.as>g.hs?'win':''}">${g.as}</div></div>
+    <div class="bxmid">${g.ot?'Final/OT':'Final'}</div>
+    <div class="bxt r"><div class="bxs ${g.hs>g.as?'win':''}">${g.hs}</div><div><div class="bxn">${H.name}</div><div class="muted small">${H.mascot} · ${H.w}-${H.l}</div></div>${crest(H.id,56)}</div></div></section>`;
+  if(!B)return `<div class="stack">${head}<section class="panel"><p class="muted">This game was played before box scores were kept. Leaders: ${g.lead?[...g.lead.a,...g.lead.h].join(' · '):'none recorded'}.</p></section></div>`;
+  const nq=B.q.h.length, ql=i=>i<4?`${i+1}`:'OT';
+  const qt=`<div class="tw"><table class="bxq"><thead><tr><th></th>${B.q.h.map((_,i)=>`<th>${ql(i)}</th>`).join('')}<th>T</th></tr></thead><tbody>
+    <tr><td>${crest(A.id,18)} ${A.abbr}</td>${B.q.a.map(v=>`<td>${v}</td>`).join('')}<td><b>${g.as}</b></td></tr>
+    <tr><td>${crest(H.id,18)} ${H.abbr}</td>${B.q.h.map(v=>`<td>${v}</td>`).join('')}<td><b>${g.hs}</b></td></tr></tbody></table></div>`;
+  const T=B.t, v=(s,k)=>T[s][k]||0, rows=[['First downs',s=>v(s,'fd')],['Total yards',s=>v(s,'py')+v(s,'ry')],['Passing',s=>`${v(s,'pc')}/${v(s,'pa')}, ${v(s,'py')} yds`],['Rushing',s=>`${v(s,'ra')} car, ${v(s,'ry')} yds`],['Yards per carry',s=>v(s,'ra')?(v(s,'ry')/v(s,'ra')).toFixed(1):'–'],['Turnovers',s=>v(s,'to')],['Sacks allowed',s=>v(s,'skd')],['Penalties',s=>`${v(s,'pen')}-${v(s,'peny')}`]];
+  const ts=`<div class="tw"><table class="bxtm"><thead><tr><th></th><th>${A.abbr}</th><th>${H.abbr}</th></tr></thead><tbody>${rows.map(([l,f])=>`<tr><td>${l}</td><td>${f('a')}</td><td>${f('h')}</td></tr>`).join('')}</tbody></table></div>`;
+  const fmtC=c=>`${Math.floor(c/60)}:${String(c%60).padStart(2,'0')}`;
+  const scs=B.sc.length?`<div class="list">${B.sc.map(([qq,c,s,tx,sh,sa])=>`<div class="li"><span class="tag">${ql(qq-1)} ${fmtC(c)}</span>${crest(s==='h'?H.id:A.id,18)}<span class="grow small">${esc(tx)}</span><span class="muted small">${A.abbr} ${sa}, ${H.abbr} ${sh}</span></div>`).join('')}</div>`:'<p class="muted">No scoring.</p>';
+  const tbl=(s,title,cols,flt,sortK)=>{const L=B.pl[s].filter(([,, ,b])=>flt(b)).sort((x,y)=>(y[3][sortK]||0)-(x[3][sortK]||0));if(!L.length)return'';
+    return `<h4>${title}</h4><div class="tw"><table class="bxp"><thead><tr><th>Player</th>${cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${L.map(([n,pos,num,b])=>`<tr><td>${esc(n)} <span class="muted small">#${num} ${pos}</span></td>${cols.map(c=>`<td>${c[1](b)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`};
+  const z=(b,k)=>b[k]||0;
+  const team=s=>{const S0=s==='h'?H:A;return `<section class="panel"><h3>${crest(S0.id,24)} ${S0.name}</h3>
+    ${tbl(s,'Passing',[['C/A',b=>`${z(b,'pc')}/${z(b,'pa')}`],['Yds',b=>z(b,'py')],['TD',b=>z(b,'ptd')],['INT',b=>z(b,'pi')]],b=>z(b,'pa')>0,'py')}
+    ${tbl(s,'Rushing',[['Car',b=>z(b,'ra')],['Yds',b=>z(b,'ry')],['Avg',b=>z(b,'ra')?(z(b,'ry')/z(b,'ra')).toFixed(1):'–'],['TD',b=>z(b,'rtd')]],b=>z(b,'ra')>0,'ry')}
+    ${tbl(s,'Receiving',[['Rec',b=>z(b,'rc')],['Yds',b=>z(b,'cy')],['TD',b=>z(b,'ctd')]],b=>z(b,'rc')>0,'cy')}
+    ${tbl(s,'Defense',[['Tkl',b=>z(b,'tk')],['Sacks',b=>z(b,'sk')],['INT',b=>z(b,'di')],['FR',b=>z(b,'fr')]],b=>z(b,'tk')+z(b,'sk')+z(b,'di')+z(b,'fr')>0,'tk')}
+    ${tbl(s,'Kicking',[['FG',b=>z(b,'fgm')],['XP',b=>z(b,'xp')]],b=>z(b,'fgm')+z(b,'xp')>0,'fgm')}</section>`};
+  return `<div class="stack">${head}<div class="grid"><section class="panel"><h2>Scoring</h2>${qt}${scs}</section><section class="panel"><h2>Team stats</h2>${ts}</section></div><div class="grid">${team('a')}${team('h')}</div></div>`;
+}
+let BOXG=null;
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* ---------- records, championships, coaching history ---------- */
 const REC_KEYS=[['py','Passing yards'],['ptd','Passing TDs'],['ry','Rushing yards'],['rtd','Rushing TDs'],['rc','Receptions'],['cy','Receiving yards'],['ctd','Receiving TDs'],['tk','Tackles'],['sk','Sacks'],['di','Interceptions']];
@@ -2099,9 +2154,12 @@ const userGame=()=>S.games.find(g=>g.week===S.week&&(g.home===S.user||g.away===S
 const DIV_NAME={1:'Division I',2:'Division II'}, MOVE_N=3, BR_ORDER=[0,7,3,4,1,6,2,5];
 function assignDivisions(){const r=rankList(),half=Math.ceil(r.length/2);r.forEach((s,i)=>s.div=i<half?1:2)}
 const divTeams=dv=>rankList().filter(s=>s.div===dv);
+// Playoff standings: best record in the division first; ties go to head-to-head, then the power poll
+function h2h(a,b){let n=0;for(const g of S.games)if(g.played&&g.week<=10&&((g.home===a.id&&g.away===b.id)||(g.home===b.id&&g.away===a.id))){const aw=(g.home===a.id)===(g.hs>g.as);n+=aw?1:-1}return n}
+const divStand=dv=>divTeams(dv).sort((a,b)=>(winPct(b)-winPct(a))||(b.w-a.w)||(-h2h(a,b))||(b.elo-a.elo));
 const winPct=s=>(s.w+s.l)?s.w/(s.w+s.l):0;
 function seedPlayoffs(){
-  S.brackets=[1,2].map(dv=>{const t=divTeams(dv).slice(0,8);return{name:DIV_NAME[dv],div:dv,teams:BR_ORDER.map(i=>t[i].id),seeds:Object.fromEntries(t.map((s,i)=>[s.id,i+1])),champ:null,games:[],rounds:[]}});
+  S.brackets=[1,2].map(dv=>{const t=divStand(dv).slice(0,8);return{name:DIV_NAME[dv],div:dv,teams:BR_ORDER.map(i=>t[i].id),seeds:Object.fromEntries(t.map((s,i)=>[s.id,i+1])),champ:null,games:[],rounds:[]}});
   S.brackets.forEach(b=>schedRound(b,11));
   const mine=S.brackets.find(b=>b.teams.includes(S.user)), u=sch(S.user);
   news(mine?`${u.name} is the No. ${mine.seeds[S.user]} seed in the ${mine.name} state tournament.`:`${u.name} missed the ${DIV_NAME[u.div]} tournament. Follow the bracket on the Playoffs tab and keep recruiting.`,mine?'good':'bad');
@@ -2163,13 +2221,13 @@ function vPlayoffs(){
   const br=[1,2].map(dv=>{
     const b=live?S.brackets.find(x=>x.div===dv):null;
     if(b)return{b,proj:false};
-    const t=divTeams(dv).slice(0,8);
+    const t=divStand(dv).slice(0,8);
     return{b:{name:DIV_NAME[dv],div:dv,teams:BR_ORDER.map(i=>t[i]&&t[i].id),seeds:Object.fromEntries(t.map((s,i)=>[s.id,i+1])),rounds:[]},proj:true};
   });
   const legacy=S.brackets.length&&!live?`<section class="panel"><h2>State tournament</h2><p class="muted small">This season's tournament started under the old format. Divisions begin next season.</p>${S.brackets.map(b=>`<div class="tag">${b.name}</div><div class="list">${b.games.map(id=>{const g=S.games.find(x=>x.id===id);return `<div class="li"><span class="grow">${sch(g.home).name}${g.played?' '+g.hs:''} vs ${sch(g.away).name}${g.played?' '+g.as:''}</span></div>`}).join('')}</div>`).join('')}</section>`:'';
-  const table=dv=>{const t=divTeams(dv);return `<section class="panel"><h2>${DIV_NAME[dv]} standings</h2><div class="tw"><table><thead><tr><th>#</th><th>School</th><th>Record</th><th>Poll</th><th></th></tr></thead><tbody>${t.map((s,i)=>{const z=zoneOf(s);return `<tr class="${s.id===S.user?'me':''} ${i===7?'cut':''}"><td>${i+1}</td><td>${crest(s.id,20)} ${s.name}</td><td>${s.w}-${s.l}</td><td>No. ${dRank(s.id)}</td><td>${i<8?'<span class="chip good">Playoffs</span>':''}${s.w+s.l===0?'':z==='up'?' <span class="chip need">Moving up</span>':z==='down'?' <span class="chip bad-chip">Dropping</span>':''}</td></tr>`}).join('')}</tbody></table></div></section>`};
+  const table=dv=>{const t=divStand(dv);return `<section class="panel"><h2>${DIV_NAME[dv]} standings</h2><div class="tw"><table><thead><tr><th>#</th><th>School</th><th>Record</th><th>Poll</th><th></th></tr></thead><tbody>${t.map((s,i)=>{const z=zoneOf(s);return `<tr class="${s.id===S.user?'me':''} ${i===7?'cut':''}"><td>${i+1}</td><td>${crest(s.id,20)} ${s.name}</td><td>${s.w}-${s.l}</td><td>No. ${dRank(s.id)}</td><td>${i<8?'<span class="chip good">Playoffs</span>':''}${s.w+s.l===0?'':z==='up'?' <span class="chip need">Moving up</span>':z==='down'?' <span class="chip bad-chip">Dropping</span>':''}</td></tr>`}).join('')}</tbody></table></div></section>`};
   return `<div class="stack">
-   <section class="panel feature"><h2>State tournament</h2><p class="small">The top 8 teams in each division make the bracket, seeded by the state poll. ${u.name} plays in <b>${DIV_NAME[u.div]}</b>. After the championships, the bottom ${MOVE_N} teams in Division I drop to Division II, and the top ${MOVE_N} in Division II move up. The Division II champion always moves up.</p></section>
+   <section class="panel feature"><h2>State tournament</h2><p class="small">The 8 teams with the best records in each division make the bracket, seeded by record. Ties go to head-to-head, then the state poll. ${u.name} plays in <b>${DIV_NAME[u.div]}</b>. After the championships, the bottom ${MOVE_N} teams in Division I drop to Division II, and the top ${MOVE_N} in Division II move up. The Division II champion always moves up.</p></section>
    ${legacy}
    ${br.map(({b,proj})=>`<section class="panel"><h2>${b.name}${b.div===u.div?' · your division':''}</h2>${bracketHTML(b,proj)}</section>`).join('')}
    <div class="grid">${table(1)}${table(2)}</div>
@@ -2397,6 +2455,7 @@ const CATCH={win:2.0,reach:1.5,tipInt:.25,int:.1,base:.88,cont:.3,off:.15,keep:.
 const TK={base:.88,rate:.006,help:.08,fast:.06,behind:.1,locked:.06,sack:.8,fum:.008,lockR:.55,slow:.75,reach:1.0,shedRec:.3,fall0:.3,fallV:.18,fallHead:.8,breakR:0};
 const JIT={v:.03,a:.06,defA:1.2,dlY:.5,dX:1.2,dY:1.4};
 const RUNV={read:-1.5,dbRead:.8,cbRead:.6,keep:.45};
+const CUT={after:.3,prog:1.0,keep:1.2,hold:.5,depth:2.5}; // outside runs: when to cut up into an open lane instead of bouncing
 // per-play blocking hold (seconds): how well each scheme's blocks hold up
 const RBP={duo:.1,iso:.1,fbdive:-.1,rbdraw:.4,speedopt:-.2,midline:-.3,invveer:.1,rpo:-.35,iz:-.35,option:-.45,counter:.9,toss:.2,power:-.15,draw:.6,jet:.4,tripleopt:-1.0,oz:-1.0,trap:0,qbpower:1.0};
 const RB={pullT:.75,leadT:.55,vm:.05,lat:.7,base:1.6,rate:.03,min:.6,lo:.6,span:1.0,climb:.9};
@@ -2843,6 +2902,9 @@ function buildFrames(ev,sim){
   const qOff={x:0,y:0}; let thrown=false;
   let tackler=null,assist=null,chosen=false,tkAng=null,contactT=null,visOn=false,reachT=null,endAt=null,visT0=null;
   const engaged={}, carH=[];
+  // how open a lane is: room around the points 2, 4 and 7 yards along it (blocked and fallen defenders count less)
+  let cutChk=0,cutAt=null,wideK=0;
+  const laneClr=(C,ang,t)=>{const hx=Math.cos(ang)*dir,hy=Math.sin(ang);let clr=8;for(const d in D){const e=D[d];if(Math.abs(e.x-C.x)>16)continue;const pen=(engaged[d]?(Math.hypot(e.x-C.x,e.y-C.y)<3.2?.2:1.8):0)+(e.downT!=null&&t-e.downT<1?2.5:0);for(const sd of [2,4,7]){const dd=Math.hypot(e.x-(C.x+hx*sd),e.y-(C.y+hy*sd))+pen-sd*.32;if(dd<clr)clr=dd}}return clr};
   // Runner vision: score lanes by how much room there is 2, 4 and 7 yards ahead, prefer going north, avoid the sideline.
   const runVision=(C,t)=>{
     if(visT0==null)visT0=t;
@@ -2862,7 +2924,7 @@ function buildFrames(ev,sim){
       let sc=Math.min(clr,PH?(isPass?2.5:4):6)+Math.cos(ang)*((isPass&&PH?4:2.4)+Math.max(0,t-visT0-1)*1.6)-Math.abs(k)*(PH?.12:.05);
       const py=C.y+hy*4; if(py<2||py>51.3)sc-=4;
       if(!TD&&rem<3)sc+=Math.cos(ang)*2;
-      if(LV&&C.vb===k)sc+=RUNV.keep; // commit to a lane instead of twitching between two that look the same
+      if(LV&&C.vb===k)sc+=RUNV.keep+(wideK&&t-cutAt<CUT.hold?wideK:0); // commit to a lane instead of twitching between two that look the same
       if(sc>bs){bs=sc;best=ang;bk=k}
     }
     C.vb=bk;
@@ -2875,6 +2937,7 @@ function buildFrames(ev,sim){
   const blk={}, claimed=new Set(), dlR=['dl0','dl1','dl2','dl3'], runBlock=isRun&&!ev.scramble, OLS=['ol0','ol1','ol2','ol3','ol4'];
   // play side for runs (dir-relative lateral sign of the designed path)
   const rp=isRun&&!ev.scramble?((P.paths&&P.paths[car])||((car==='qb'&&P.qbpath)?P.qbpath:P.path)):null, side=rp?Math.sign(rp[rp.length-1][1]||1):1;
+  const wideRun=!!rp&&car!=='qb'&&(P.base==='run_out'||Math.abs(rp[rp.length-1][1])>=8);
   const scheme=!runBlock?'pass':P.blk||(P.base==='run_out'?'reach':'zone');
   let puller=null;
   let holeLat=0;
@@ -3023,7 +3086,12 @@ function buildFrames(ev,sim){
       if(ev.scramble&&t<Tt){place(O.qb,qbAt(t))}
       if(PH&&contactT!=null&&!visOn)visOn=true; // tackled while still on the designed path: stop there
       if(ev.scramble&&t<Tt){}
-      else if(!visOn){const pr0={x:O[car].x,y:O[car].y};place(O[car],carTL[Math.min(i,NMAX-1)]);if(dyn&&carTL[Math.min(i,NMAX-1)].done){visOn=true;if(LV){const q=O[car],hx=q.x-pr0.x,hy=q.y-pr0.y,l=Math.hypot(hx,hy)||1,v0=carTL[Math.max(0,Math.min(i,NMAX-1)-1)].v;q.vx=hx/l*v0;q.vy=hy/l*v0}}else if(!dyn&&carTL[Math.min(i,NMAX-1)].done&&contactT!=null){O[car].vx*=.5;O[car].vy*=.5}}
+      else if(!visOn){const pr0={x:O[car].x,y:O[car].y};place(O[car],carTL[Math.min(i,NMAX-1)]);
+        // outside runs: once the back has the ball and is moving, he reads the field instead of always bouncing to the edge.
+        // He keeps his current lane unless one inside is clearly better (see runVision's commit bonus).
+        if(LV&&dyn&&wideRun&&t>hand+CUT.after){const q=O[car],st0=carTL[0],prog=(q.x-st0.x)*dir,mvx=q.x-pr0.x,mvy=q.y-pr0.y,l=Math.hypot(mvx,mvy);
+          if(prog>CUT.prog&&(los-q.x)*dir<CUT.depth&&l>.05){visOn=true;cutAt=t;const v0=carTL[Math.max(0,Math.min(i,NMAX-1)-1)].v||q.v;q.vx=mvx/l*v0;q.vy=mvy/l*v0;q.vb=clamp(Math.round(Math.atan2(mvy,mvx*dir)/(15*Math.PI/180)),-5,5);wideK=CUT.keep}}
+        if(!visOn&&dyn&&carTL[Math.min(i,NMAX-1)].done){visOn=true;if(LV){const q=O[car],hx=q.x-pr0.x,hy=q.y-pr0.y,l=Math.hypot(hx,hy)||1,v0=carTL[Math.max(0,Math.min(i,NMAX-1)-1)].v;q.vx=hx/l*v0;q.vy=hy/l*v0}}else if(!dyn&&carTL[Math.min(i,NMAX-1)].done&&contactT!=null){O[car].vx*=.5;O[car].vy*=.5}}
       else runVision(O[car],t);
       carE=ev.scramble&&t<Tt?null:O[car];if(carE)cRole=car;
       if(car!=='qb'&&!ev.scramble){
@@ -3361,6 +3429,7 @@ function buildFrames(ev,sim){
     ev.lv={yds:physTD?100-ev.fromYd:yd,td:physTD,oob:physOOB,broken,tackler:INT?null:tackler,carRole:tkC||cRole,thrown,tgt,res:lvRes,air:lvAir,sep:lvSep,read:lvRead,hot:lvHot,press:lvPress,
       sack:!isRun&&!thrown&&scrT==null&&contactT!=null,scr:scrT!=null&&!thrown,picker:INT?picker:null,pick6,intYd:INT?clamp(ev.fromYd+yd,1,99):null,pen,fumble:fum&&!INT,dur:frames.length*DT-SNAP,Tt:thrown?Tt:null,Tc:thrown?Tc:null,dbg:DBG}}
   if(PH&&frames.length){const lb=frames[frames.length-1].ball;ev.physYds=physTD?100-ev.fromYd:Math.round((lb.x-los)*dir);ev.physBroken=broken;ev.physOOB=physOOB}
+  if(cutAt!=null)ev.cutAt=+(cutAt-hand).toFixed(2);
   return frames;
 }
 // The field gets whatever height is left once the scoreboard and the play-call dock are on screen,
@@ -4413,7 +4482,7 @@ function header(){
 }
 function tabs(){
   const T=[['home','Home'],['game','Game day'],['schedule','Schedule'],['rank','Rankings'],['playoffs','Playoffs'],['roster','Roster'],['playbook','Playbook'],['recruit','Recruiting'],['news','News'],['history','History'],['online','Play a friend']];
-  return `<nav class="tabs" aria-label="Sections">${T.map(([k,l])=>`<button class="tab" data-a="tab" data-v="${k}" aria-current="${view===k}">${l}${k==='game'&&LIVE&&!LIVE.finished?' ●':''}</button>`).join('')}</nav>`;
+  return `<nav class="tabs" aria-label="Sections">${T.map(([k,l])=>`<button class="tab" data-a="tab" data-v="${k}" aria-current="${view===k||(view==='box'&&k==='schedule')}">${l}${k==='game'&&LIVE&&!LIVE.finished?' ●':''}</button>`).join('')}</nav>`;
 }
 function oppLine(g){const home=g.home===S.user,o=sch(home?g.away:g.home),rk=dRank(o.id);return{o,home,label:`${home?'vs':'at'} ${rk<=10?dLabel(o.id)+' ':''}${o.name}`}}
 function cmpRow(lbl,a,b){const sc=v=>clamp((v-30)/60*100,4,100);return `<span class="l">${lbl}</span><div class="bar rev"><i style="width:${sc(a)}%"></i></div><b class="num">${Math.round(a)}</b><div class="bar opp"><i style="width:${sc(b)}%"></i></div><b class="num">${Math.round(b)}</b>`}
@@ -4476,7 +4545,7 @@ function vGame(){
 let DOCK_KEYS=[];
 function renderDock(){
   const dk=document.getElementById('dock'), L=LIVE; if(!dk)return;
-  if(!L||L.finished||!L.waiting||L.waiting==='remote'||view!=='game'){dk.hidden=true;document.body.classList.remove('docked');return}
+  if(!L||L.finished||!L.waiting||L.waiting==='remote'||view!=='game'){dk.hidden=true;dk._html=null;document.body.classList.remove('docked');return}
   const s=L.sim, myT=L.net?s.T[L.side]:sch(S.user); DOCK_KEYS=[]; let n=0, h='';
   const key=()=>{n++;return n<=9?n:n===10?0:''};
   if(L.waiting==='pat'){
@@ -4503,7 +4572,11 @@ function renderDock(){
     const ids=Object.keys(DEFS);
     h=`<div class="dhead"><b>${s.T[s.poss].abbr} ball · ${s.ddText()}</b><div class="dseg"><span class="tag">Corners</span><div class="seg" role="group" aria-label="Corner technique">${[['auto','Auto'],['press','Press'],['off','Off']].map(([k2,l])=>`<button data-a="press" data-v="${k2}" aria-pressed="${pr===k2}">${l}</button>`).join('')}</div></div></div><div class="dcards">${grp('Man',ids.filter(i=>DEFS[i].grp==='Man').map(card))}${grp('Zone',ids.filter(i=>DEFS[i].grp==='Zone').map(card))}${grp('Pressure',ids.filter(i=>DEFS[i].grp==='Pressure').map(card))}</div>`;
   }
-  dk.innerHTML=PB_DEFS+`<div class="dinner">${h}</div>`; dk.hidden=false; document.body.classList.add('docked');
+  // only rebuild when the cards actually change, and keep the scroll position, so a swipe through the plays isn't thrown back to the start
+  const html=PB_DEFS+`<div class="dinner">${h}</div>`;
+  if(dk._html!==html){const sc=[...dk.querySelectorAll('.dcards')].map(e=>e.scrollLeft),same=dk._wait===L.waiting;dk.innerHTML=html;dk._html=html;dk._wait=L.waiting;
+    if(same)dk.querySelectorAll('.dcards').forEach((e,i)=>{if(sc[i])e.scrollLeft=sc[i]})}
+  dk.hidden=false; document.body.classList.add('docked');
 }
 // your sideline: who is hurt, and which starters are running on fumes
 function sidelineHTML(L){
@@ -4549,13 +4622,13 @@ function updateGameUI(){
 }
 function vSchedule(){
   const gs=S.games.filter(g=>g.home===S.user||g.away===S.user).sort((a,b)=>a.week-b.week);
-  return `<section class="panel"><h2>${S.year} schedule</h2><div class="tw"><table><thead><tr><th>Week</th><th>Opponent</th><th>Division</th><th>Result</th></tr></thead><tbody>${gs.map(g=>{const {o,label}=oppLine(g);let res='–';if(g.played){const us=g.home===S.user?g.hs:g.as,th=g.home===S.user?g.as:g.hs;res=`<span class="${us>th?'good':'bad'}">${us>th?'W':'L'} ${us}-${th}${g.ot?' OT':''}</span>`}else if(g.week===S.week)res='<span class="muted">This week</span>';return `<tr><td>${wkLabel(g.week)}</td><td>${crest(o.id,20)} ${label}</td><td class="muted">${g.po||DIV_NAME[o.div]||''}</td><td>${res}</td></tr>`}).join('')}</tbody></table></div></section>`;
+  return `<section class="panel"><h2>${S.year} schedule</h2><div class="tw"><table><thead><tr><th>Week</th><th>Opponent</th><th>Division</th><th>Result</th><th></th></tr></thead><tbody>${gs.map(g=>{const {o,label}=oppLine(g);let res='–';if(g.played){const us=g.home===S.user?g.hs:g.as,th=g.home===S.user?g.as:g.hs;res=`<span class="${us>th?'good':'bad'}">${us>th?'W':'L'} ${us}-${th}${g.ot?' OT':''}</span>`}else if(g.week===S.week)res='<span class="muted">This week</span>';return `<tr class="${g.played?'clk':''}" ${g.played?`data-a="box" data-v="${g.id}" tabindex="0" role="button" aria-label="Box score"`:''}><td>${wkLabel(g.week)}</td><td>${crest(o.id,20)} ${label}</td><td class="muted">${g.po||DIV_NAME[o.div]||''}</td><td>${res}</td><td>${g.played?'<span class="bxlink">Box score ›</span>':''}</td></tr>`}).join('')}</tbody></table></div><p class="muted small">Click a played game for its box score and stats.</p></section>`;
 }
 function vRank(){
   const hist=S.history.length?`<section class="panel"><h2>Past champions</h2><div class="list">${S.history.map(h=>`<div class="li"><span class="rk">${String(h.year).slice(2)}</span><span class="grow">${h.div1!==undefined?`D-I: ${h.div1?sch(h.div1).name:'–'} · D-II: ${h.div2?sch(h.div2).name:'–'}`:`Open: ${h.open?sch(h.open).name:'–'} · D-I: ${h.d1?sch(h.d1).name:'–'}`}</span><span class="muted">You ${h.rec}</span></div>`).join('')}</div></section>`:'';
   const poll=dv=>{const t=divTeams(dv);return `<section class="panel"><h2>${DIV_NAME[dv]} poll${sch(S.user).div===dv?' · your division':''}</h2>
-    <div class="tw"><table><thead><tr><th>#</th><th>School</th><th>Record</th><th>PF</th><th>PA</th><th>Move</th></tr></thead><tbody>${t.map((s,i)=>{const prev=S.prevRanks[s.id]||i+1,mv=prev-(i+1);return `<tr class="${s.id===S.user?'me':''} ${i===7?'cut':''}"><td>${i+1}</td><td>${crest(s.id,20)} ${s.name}</td><td>${s.w}-${s.l}</td><td>${s.pf}</td><td>${s.pa}</td><td class="${mv>0?'good':mv<0?'bad':'muted'}">${mv>0?'▲'+mv:mv<0?'▼'+(-mv):'–'}</td></tr>`}).join('')}</tbody></table></div></section>`};
-  return `<div class="stack"><p class="muted small">Teams are ranked within their division by results and strength of schedule. The top 8 in each division make the state tournament (dashed line).${S.year===2027?' Preseason order follows the SI Hawaiʻi Elite 12 of Oct 19, 2026; unranked programs are estimated.':''}</p>
+    <div class="tw"><table><thead><tr><th>#</th><th>School</th><th>Record</th><th>PF</th><th>PA</th><th>Move</th></tr></thead><tbody>${t.map((s,i)=>{const prev=S.prevRanks[s.id]||i+1,mv=prev-(i+1);return `<tr class="${s.id===S.user?'me':''}"><td>${i+1}</td><td>${crest(s.id,20)} ${s.name}</td><td>${s.w}-${s.l}</td><td>${s.pf}</td><td>${s.pa}</td><td class="${mv>0?'good':mv<0?'bad':'muted'}">${mv>0?'▲'+mv:mv<0?'▼'+(-mv):'–'}</td></tr>`}).join('')}</tbody></table></div></section>`};
+  return `<div class="stack"><p class="muted small">Teams are ranked within their division by results and strength of schedule. Playoff spots go to the 8 best records in each division, not the poll (see the standings on the Playoffs tab).${S.year===2027?' Preseason order follows the SI Hawaiʻi Elite 12 of Oct 19, 2026; unranked programs are estimated.':''}</p>
    <div class="grid">${poll(1)}${poll(2)}</div>
    <div class="grid"><section class="panel"><h2>State tournament</h2><p class="small muted">Brackets, playoff cutoffs and promotion and relegation are on the Playoffs tab.</p><div class="row"><button class="btn sm" data-a="tab" data-v="playoffs">Open the brackets</button></div></section>${hist}</div></div>`;
 }
@@ -4632,7 +4705,7 @@ function vRecruit(){
      <div class="li"><span class="grow"><b>Campus visit</b> · 30 hrs<br><span class="muted">Bigger boost. Always uncovers a reason.</span></span></div>
      <div class="li"><span class="grow"><b>Home visit</b> · 45 hrs<br><span class="muted">Biggest boost. Reveals everything. Once per player.</span></span></div>
     </div>
-    <p class="muted small">${u.priv?`Private schools have admissions: ${u.name} needs a ${admitReq(u).toFixed(1)} GPA.`:`Kids outside your district need a geographic exception to enroll (${GE_PER_YEAR} a year).`} Star rankings miss: scout before you spend big. Every contact carries a pitch. Pitch what he cares about and what your school is good at. Players you ignore for two weeks start to cool on you. Credibility drops when you break promises and makes every pitch weaker.</p></section>
+    <p class="muted small">${u.priv?`Private schools have admissions: ${u.name} needs a ${admitReq(u).toFixed(1)} GPA.`:`Anyone on your island can enroll. Kids from other islands need a geographic exception (${GE_PER_YEAR} a year).`} Star rankings miss: scout before you spend big. Every contact carries a pitch. Pitch what he cares about and what your school is good at. Players you ignore for two weeks start to cool on you. Credibility drops when you break promises and makes every pitch weaker.</p></section>
    <section class="panel"><h2>Auto-recruit</h2><div class="row"><button class="btn sm" data-a="autorec" aria-pressed="${S.autoRec!==false}">${S.autoRec!==false?'On':'Off'}</button><span class="muted small">When you simulate a week, your staff spends leftover hours on the positions you need, using each player's best pitch.</span></div></section>
    ${(()=>{const pp=Object.entries(S.pipe||{}).filter(x=>x[1]>=.5).sort((a,b)=>b[1]-a[1]).slice(0,6);return `<section class="panel"><h2>Pipelines</h2>${pp.length?`<div class="list small">${pp.map(([k,v])=>`<div class="li"><span class="grow">${k}</span><b>${pipeLabel(v)}</b></div>`).join('')}</div>`:'<p class="muted small">Sign kids from a youth program, or keep in touch with its coaches, and its next players listen to you sooner.</p>'}</section>`})()}
    ${S.lastClass?`<section class="panel"><h2>Class of ${S.lastClass.cls} · ${S.lastClass.grade}</h2><p class="small">${S.lastClass.n} signed${S.lastClass.rank?`, No. ${S.lastClass.rank} in the state`:''}, ${S.lastClass.avgS} stars on average${S.lastClass.gems?`, ${S.lastClass.gems} hidden gem${S.lastClass.gems>1?'s':''}`:''}.</p>${S.lastClass.best.length?`<p class="muted small">${S.lastClass.best.join(' · ')}</p>`:''}</section>`:''}
@@ -4664,7 +4737,7 @@ function pitchUI(p){
     const off=k=>S.hours<ACTIONS[k].cost||(k==='coach'?p.coachWk===S.week:acted)||(k==='home'&&p.homeVisit)||(k==='game'&&!homeG)||(k==='camp'&&!camp);
     const tip={coach:'Cheap. Can uncover what he wants and builds your pipeline with his youth program.',call:'Small boost with your pitch.',game:homeG?'He watches this week\'s home game. A win sells; a loss doesn\'t.':'Only in a week with a home game.',watch:'Scouting. Two looks give a full report.',camp:camp?'Junior Day: if he shows up you get a full evaluation and a solid boost.':`Junior Day is in weeks ${CAMP_WEEKS.join(' and ')}.`,visit:'Bigger boost. Always uncovers a reason.',home:'Biggest boost. Reveals everything. Once per player.'};
     return `<div class="acts">${Object.entries(ACTIONS).map(([k,a])=>`<button class="btn sm" data-a="rec" data-v="${p.id}|${k}" title="${tip[k]}" ${off(k)?'disabled':''}>${a.label} · ${a.cost}</button>`).join('')}</div>`})()}
-  <div class="acts"><button class="btn sm" data-a="rec" data-v="${p.id}|promise" ${p.promised?'disabled':''}>${p.promised?'Starting job promised':'Promise a starting job'}</button>${!s.priv&&p.home!==u?`<button class="btn sm" data-a="rec" data-v="${p.id}|ge" ${p.ge||(S.geLeft??GE_PER_YEAR)<=0?'disabled':''}>${p.ge==='ok'?'Exception approved':p.ge==='denied'?'Exception denied':`File geographic exception (${S.geLeft??GE_PER_YEAR} left)`}</button>`:''}${s.priv?`<button class="btn sm" data-a="rec" data-v="${p.id}|aid" ${p.aid[u]||!S.aidLeft||S.hours<10?'disabled':''}>${p.aid[u]?'Aid offered':`Offer tuition aid · 10 (${S.aidLeft} left)`}</button>`:''}</div>
+  <div class="acts"><button class="btn sm" data-a="rec" data-v="${p.id}|promise" ${p.promised?'disabled':''}>${p.promised?'Starting job promised':'Promise a starting job'}</button>${!s.priv&&!noGE(p,u)?`<button class="btn sm" data-a="rec" data-v="${p.id}|ge" ${p.ge||(S.geLeft??GE_PER_YEAR)<=0?'disabled':''}>${p.ge==='ok'?'Exception approved':p.ge==='denied'?'Exception denied':`File geographic exception (${S.geLeft??GE_PER_YEAR} left)`}</button>`:''}${s.priv?`<button class="btn sm" data-a="rec" data-v="${p.id}|aid" ${p.aid[u]||!S.aidLeft||S.hours<10?'disabled':''}>${p.aid[u]?'Aid offered':`Offer tuition aid · 10 (${S.aidLeft} left)`}</button>`:''}</div>
   <p class="muted small">${acted?'<b class="amber">You already contacted him this week.</b> ':''}${S.hours} hours left this week. A promised recruit starts as a freshman even over better players. Promise more starters than a position has and the extra promises break, costing you credibility.</p>`;
 }
 function vProfile(p){
@@ -4694,7 +4767,7 @@ function vProfile(p){
    <section class="panel"><h2>Where he stands</h2><div class="list small">
      <div class="li"><span class="grow">Decision</span><b>${p.signed?'Signed':p.committed?`Committed in week ${p.cwk||'?'}`:S.week>=p.dwk?'Ready to decide any week now':`Plans to decide around week ${p.dwk}`}</b></div>
      ${p.committed?`<div class="li"><span class="grow">Commitment</span><b class="${firmLabel(firmness(p))[1]}">${firmLabel(firmness(p))[0]}</b></div>`:''}
-     <div class="li"><span class="grow">Eligibility at ${s.abbr}</span><b class="${canCommit(p,u)?'good':'bad'}">${s.priv?(p.gpa>=admitReq(s)?`Meets admission (${admitReq(s).toFixed(1)} GPA)`:`Below admission (needs ${admitReq(s).toFixed(1)} GPA)`):p.home===u?'In your district':p.ge==='ok'?'Exception approved':p.ge==='denied'?'Exception denied':'Needs a geographic exception'}</b></div>
+     <div class="li"><span class="grow">Eligibility at ${s.abbr}</span><b class="${canCommit(p,u)?'good':'bad'}">${s.priv?(p.gpa>=admitReq(s)?`Meets admission (${admitReq(s).toFixed(1)} GPA)`:`Below admission (needs ${admitReq(s).toFixed(1)} GPA)`):p.home===u?'In your district':noGE(p,u)?'On your island, no exception needed':p.ge==='ok'?'Exception approved':p.ge==='denied'?'Exception denied':'Needs a geographic exception'}</b></div>
      <div class="li"><span class="grow">Your pipeline with ${p.youth}</span><b>${pipeLabel((S.pipe||{})[p.youth]||0)}</b></div>
     </div></section>
    <section class="panel"><h2>Schools in the race</h2><div class="attrs">${su.map(([id,v])=>`<span class="${id===u?'amber':''}">${crest(id,18)} ${sch(id).name}${p.committed===id?' · committed':''}</span><div class="bar ${id===u?'':'opp'}"><i style="width:${v}%"></i></div><b class="num">${Math.round(v)}</b>`).join('')}</div>
@@ -4765,7 +4838,7 @@ function render(){
   if(view==='title'){app.innerHTML=vTitle();document.body.classList.remove('docked');return}
   if(view==='newcareer'||!S||S.tmp){app.innerHTML=vStart();return}
   recInit();
-  const body=view==='game'?vGame():view==='schedule'?vSchedule():view==='rank'?vRank():view==='playoffs'?vPlayoffs():view==='roster'?vRoster():view==='recruit'?vRecruit():view==='playbook'?vPlaybook():view==='news'?vNews():view==='history'?vHistory():view==='online'?vOnline():vHome();
+  const body=view==='game'?vGame():view==='schedule'?vSchedule():view==='rank'?vRank():view==='playoffs'?vPlayoffs():view==='roster'?vRoster():view==='recruit'?vRecruit():view==='playbook'?vPlaybook():view==='news'?vNews():view==='history'?vHistory():view==='online'?vOnline():view==='box'?vBox():vHome();
   app.innerHTML=header()+tabs()+body+vFooter();
   if(view==='game'){updateGameUI();if(!document.body.classList.contains('fs')){const b=document.getElementById('bug');if(b)requestAnimationFrame(()=>{const y=b.getBoundingClientRect().top+window.scrollY-8;if(Math.abs(window.scrollY-y)>4)window.scrollTo(0,y)})}}
   else {document.body.classList.remove('docked');if(document.body.classList.contains('fs'))setFS(false)}
@@ -5359,6 +5432,7 @@ document.addEventListener('click',e=>{
   else if(a==='uni'){const [k,val]=v.split('|');setUni({[k]:val})}
   else if(a==='unipre'){const pr=UNI_PRE.find(x=>x[0]===v);if(pr)setUni(pr[1])}
   else if(a==='exportcur'){if(SLOTID)exportSlot(SLOTID)}
+  else if(a==='box'){BOXG=+v;view='box';render();window.scrollTo(0,0)}
   else if(a==='tab'){view=v;if(v==='recruit')RS.sel=null;render()}
   else if(a==='kickoff'){if(LIVE&&!LIVE.finished){view='game';render()}else startLive()}
   else if(a==='advance')advanceWeek();
@@ -5398,6 +5472,7 @@ document.addEventListener('click',e=>{
   else if(a==='reset'){if(!resetArmed){resetArmed=true;render();return}resetArmed=false;if(LIVE)clearTimeout(LIVE.timer);LIVE=null;S=null;try{localStorage.removeItem(KEY)}catch(e){}render();window.scrollTo(0,0)}
 });
 document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.target&&e.target.dataset&&e.target.dataset.a==='box'){e.target.click();return}
   if(LIVE&&view==='game'&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!/^(INPUT|SELECT|TEXTAREA)$/.test((e.target.tagName||''))){if(e.key==='f'||e.key==='F'){e.preventDefault();setFS(!document.body.classList.contains('fs'));return}if(e.key==='Escape'&&document.body.classList.contains('fs')){setFS(false);return}}
   if(!LIVE||!LIVE.waiting||view!=='game'||e.metaKey||e.ctrlKey||e.altKey)return;
   if(/^(INPUT|SELECT|TEXTAREA)$/.test((e.target.tagName||'')))return;
